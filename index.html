@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Attendance AI — Real Backend</title>
+<style>
+body{font-family:Arial;margin:0;background:#f3f6fa;color:#162238}.wrap{max-width:1000px;margin:auto;padding:25px}.card{background:#fff;border-radius:14px;padding:20px;margin:15px 0;box-shadow:0 2px 10px #0001}button{padding:11px 16px;border:0;border-radius:8px;background:#172238;color:#fff;cursor:pointer;margin:4px}input{padding:11px;border:1px solid #ccd5e1;border-radius:8px}video{width:100%;max-width:720px;border-radius:12px;background:#111}.ok{color:#177342}.err{color:#b42318}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style></head>
+<body><div class="wrap">
+<h1>Smart Attendance AI</h1><p>Real Face Recognition + YOLO Phone Detection backend</p>
+<div class="card"><h2>1. Enroll a Student</h2><div class="row"><input id="name" placeholder="Student full name"><button id="enroll">Enroll Current Face</button></div><p id="enrollMsg"></p></div>
+<div class="card"><h2>2. Live Camera</h2><button id="start">Start Camera</button><button id="stop">Stop</button><button id="recognize">Recognize & Mark Attendance</button><br><br><video id="video" autoplay playsinline></video><p id="result"></p></div>
+<div class="card"><h2>Attendance</h2><table width="100%" id="table"><tr><th>Name</th><th>Time</th><th>Status</th><th>Confidence</th><th>Phone</th></tr></table></div>
+</div>
+<script>
+let stream=null, video=document.getElementById('video');
+const snap=()=>{let c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);return new Promise(r=>c.toBlob(r,'image/jpeg',.88))};
+async function post(url,form){let r=await fetch(url,{method:'POST',body:form});return r.json()}
+start.onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});video.srcObject=stream;result.textContent='Camera online';result.className='ok'}catch(e){result.textContent=e.message;result.className='err'}};
+stop.onclick=()=>{if(stream)stream.getTracks().forEach(t=>t.stop());video.srcObject=null};
+enroll.onclick=async()=>{if(!stream)return alert('Start camera first');let b=await snap(),f=new FormData();f.append('name',name.value);f.append('image',b,'face.jpg');let x=await post('/api/enroll',f);enrollMsg.textContent=x.ok?x.message:x.error;enrollMsg.className=x.ok?'ok':'err'};
+recognize.onclick=async()=>{if(!stream)return alert('Start camera first');let b=await snap(),f=new FormData();f.append('image',b,'frame.jpg');let x=await post('/api/recognize',f);if(x.match){result.textContent=`✓ ${x.name} — ${x.status} — ${x.confidence}% — Phone: ${x.phone.detected?'Detected':'No phone'}`}else result.textContent=x.message||x.error||'Unknown face';load()};
+async function load(){let a=await (await fetch('/api/attendance')).json();table.innerHTML='<tr><th>Name</th><th>Time</th><th>Status</th><th>Confidence</th><th>Phone</th></tr>'+a.map(x=>`<tr><td>${x.name}</td><td>${x.timestamp}</td><td>${x.status}</td><td>${x.confidence||0}%</td><td>${x.phone_detected?'Detected':'No'}</td></tr>`).join('')}
+load();
+</script></body></html>
